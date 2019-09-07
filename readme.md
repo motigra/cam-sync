@@ -11,11 +11,10 @@ Various utilities for managing the images on my Sony Alpha 6400 camera
 ## TODO
 
  - File sorting mechanism
-    - Make it work as a CLI and as a library
-    - Make it accept source and target directories as arguments
- - Move constants to separate file
+    - Make it work as a CLI
+    - Improve efficiency by caching `ensureFolder`
  - USB detection
-    - Move to separate module
+    - Move detection constants to separate file
     - Make it work as a library
     - Ensure correct media by contents
  - Catalog

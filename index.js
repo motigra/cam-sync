@@ -1,48 +1,29 @@
-const usb = require('usb');
-const si = require('systeminformation');
+const CONST = require('./const.js');
+const files = require('./photo.js');
 
-function isSimilarNumber(x,y) {
-    return (Math.abs((y/x) - (x/y)) < 0.01);
-}
+let _start = new Date();
 
-usb.on('attach', (device) => {
-
-    if(!(device.deviceDescriptor.idVendor == 1356 && device.deviceDescriptor.idProduct == 3240))
-        return;
-
-    console.log('detected sony usb drive connection');
-
-    si.diskLayout((disks) => {
-
-        let sonyDisks = disks.filter((item) => {
-            return item.name == 'Sony DSC USB Device';
-        });
-
-        if(!sonyDisks.length)
-            return;
-
-        console.log('found sony DSC USB Devices');
-
-        let diskSize = Math.max(...sonyDisks.map((item) => {
-            return item.size;
-        }));
-        
-        si.blockDevices((blockDevices) => {
-
-            let matchingDevices = blockDevices.filter((item) => {
-                return item.fstype == 'exfat' && item.removable && isSimilarNumber(diskSize, item.size*1);
-            });
-
-            if(!matchingDevices.length)
-                return;
-
-            console.log('found removable drives of matching size');
-
-            if(matchingDevices.length == 1)
-                console.log('matching device letter: ' + matchingDevices[0].mount);
-            else
-                throw 'found multiple matching devices';
-
-        });
-    });
+files.sortFiles('D:\\Photos\\New A6400', CONST.FS.MAIN_FOLDER)
+.then((count) => {
+    let _end = new Date();
+    let span = getTimeSpan(_start, _end);
+    console.log('%d photos copied in %d minutes, %d seconds, %d ms', count, span.m, span.s, span.ms);
+}, (err) => {
+    throw err;
 });
+
+// Helper Methods
+
+function getTimeSpan(a, b){
+    let diff = b-a;
+    let _ms = diff % 1000;
+    diff -= _ms;
+    let _s = diff % 60000;
+    diff -= _s;
+    let _m = diff;
+    return {
+        ms: _ms,
+        s: _s / 1000,
+        m: _m / 60000
+    };
+}

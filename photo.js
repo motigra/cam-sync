@@ -1,119 +1,165 @@
+// Imports
 const fs = require('fs');
 const exif = require('jpeg-exif');
 const util = require('util');
+const CONST = require('./const.js');
 
-const folder = 'D:\\Photos\\New A6400';
+// Exports
+module.exports = {
+    sortFiles
+}
 
-const dest = 'D:\\Photos';
+// Main Functions
 
-const jpegRegex = /\.jp(e?)g$/i;
-const exifDateRegex = /\d{2,4}/g;
+/**
+ * Sort JPEG files into directories by date
+ * @param {string} sourceDir 
+ * @param {string} destDir 
+ */
+function sortFiles(sourceDir = 'D:\\Photos\\New A6400', destDir = CONST.FS.MAIN_FOLDER) {
 
-function ensureFolder(dirName) {
-    return new Promise((resolve, reject) => {
+    console.log('Sorting files from origin "%s" to destination "%s"', sourceDir, destDir);
 
-        let innerP = new Promise((resolve2, reject2) => {
+    let c = 0;
 
-            let fullPath = util.format('%s\\%s', dest, dirName);
-            fs.exists(fullPath, (exists) => {
-                if(exists) {
-                    //console.log('folder %s exists', fullPath);
-                    resolve2(fullPath);
-                }
-                else {
-                    console.log('creating folder %s', fullPath);
-                    fs.mkdir(fullPath, (err) => {
-                        if(err)
-                            reject2(err);
-                        else
-                            resolve2(fullPath);
-                    });
-                }
+    return getJpegsInFolder(sourceDir)
+    .then((jpegs) => {
+
+        console.log('Folder "%s" contains %d JPEG files', sourceDir, jpegs.length);
+
+        // Process each file in async mode
+        let promises = jpegs.map((jpegFile) => {
+
+            let sourceFilePath = util.format('%s\\%s', sourceDir, jpegFile);
+
+            return getExif(sourceFilePath)
+            .then((exifData) => {
+                let date = getDateFromExif(exifData);
+                return date;
+            })
+            .then((date) => {
+                return ensureFolder(date, destDir);
+            })
+            .then((fullDestDir) => {
+                    
+                let destFilePath = util.format('%s\\%s', fullDestDir, jpegFile);
+
+                return copyFile(sourceFilePath, destFilePath);
+            })
+            .then(() => {
+                c++;
             });
+
         });
 
-        innerP.then((fullPath) => {
-            //console.log('ensuring permissions for folder %s', fullPath);
-            //fs.chmod(fullPath, 0o777, (err) => {
-            //    if(err)
-           //         reject(err);
-            //    else
-                    resolve(fullPath);
-            //});
+        // Resolve when all files have been processed
+        return Promise.all(promises);
+    })
+    .then(() => {
+        console.log('Done sorting files');
+        return c;
+    }, (err) => {
+        throw err; 
+    });
+}
+
+//let catalogue = {};
+//catalogue[date] = catalogue[date] || [];
+//catalogue[date].push(filePath);
+//console.log('done processing folder');
+//let c = 0;
+//let dates = Object.keys(catalogue);
+//console.log('total %d dates found', dates.length);
+//dates.forEach((key) => {
+//    c += catalogue[key].length;
+//});
+//console.log('sorted %d photos into dates catalog', c);
+//console.log(catalogue);
+
+// Helper Functions
+
+/**
+ * Ensure a directory exists in a given folder, create if it doesn't
+ * @param {string} dirName Name of directory
+ */
+function ensureFolder(dirName, inPath) {
+    return new Promise((resolve, reject) => {
+        let fullPath = util.format('%s\\%s', inPath, dirName);
+        fs.exists(fullPath, (exists) => {
+            if(exists) {
+                resolve(fullPath);
+            }
+            else {
+                fs.mkdir(fullPath, (err) => {
+                    if(err)
+                        reject(err);
+                    else
+                        resolve(fullPath);
+                });
+            }
         });
     });
 }
 
-fs.readdir(folder, (err, files) => {
-
-    let jpegs = files.filter((item) => {
-        return jpegRegex.test(item);
+/**
+ * Returns a list of JPEG files in a folder
+ * @param {string} folder Folder to look in
+ */
+function getJpegsInFolder(folder = '') {
+    return new Promise((resolve, reject) => {
+        fs.readdir(folder, (err, files) => {
+            if(err) {
+                reject(err);
+            }
+            else {
+                let jpegs = files.filter((item) => {
+                    return CONST.FS.REGEX.JPEG_EXT.test(item);
+                });
+                resolve(jpegs);
+            }
+        }); 
     });
+}
 
-    console.log('Folder %s contains %d JPEG files', folder, jpegs.length);
-
-    let catalogue = {};
-
-    let promises = [];
-
-    jpegs.forEach((item) => {
-
-        promises.push(new Promise((resolve, reject) => {
-
-            let filePath = util.format('%s\\%s', folder, item);
-
-            exif.parse(filePath, (err, data) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    
-                    let dateParts = data.DateTime.match(exifDateRegex);
-                    let date = util.format('%s-%s-%s', dateParts[0], dateParts[1], dateParts[2]);
-
-                    catalogue[date] = catalogue[date] || [];
-                    catalogue[date].push(filePath);
-
-                    ensureFolder(date).then((dirPath) => {
-                        
-                        let destFullPath = util.format('%s\\%s', dirPath, item);
-
-                        fs.copyFile(filePath, destFullPath, (err) => {
-                            if(err)
-                                reject(err);
-                            else
-                                resolve();
-                        })
-
-                    });
-
-                    //resolve();
-                }
-            });
-
-        }));
-
-    });
-
-    Promise.all(promises).then(() => {
-
-        console.log('done processing folder');
-
-        let c = 0;
-
-        let dates = Object.keys(catalogue);
-
-        console.log('total %d dates found', dates.length);
-
-        dates.forEach((key) => {
-            c += catalogue[key].length;
+/**
+ * Get the EXIF information from a JPEG
+ * @param {string} filePath 
+ */
+function getExif(filePath = '') {
+    return new Promise((resolve, reject) => {
+        exif.parse(filePath, (err, data) => {
+            if (err)
+                reject(err);
+            else 
+                resolve(data);
         });
-
-        console.log('sorted %d photos into dates catalog', c);
-
-        console.log(catalogue);
-
-    }, (err) => {
-        throw err;
     });
+}
 
-}); 
+/**
+ * Get the date the photo was taken from EXIF data
+ * @param {object} data File's EXIF data 
+ */
+function getDateFromExif(data = {}) {
+    let dateParts = data.DateTime.match(CONST.FS.REGEX.EXIF_DATE);
+    let date = util.format('%s-%s-%s', dateParts[0], dateParts[1], dateParts[2]);
+    return date;
+}
+
+/**
+ * Copy a file from place to place
+ * @param {string} src 
+ * @param {string} dest 
+ */
+function copyFile(src = '', dest = '') {
+    return new Promise((resolve, reject) => {
+        fs.copyFile(src, dest, (err) => {
+            if(err)
+                reject(err);
+            else {
+                console.log('Copied "%s" -> "%s"', src, dest);
+                resolve(true);
+            }
+        })
+    });
+}
