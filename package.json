@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "jpeg-exif": "^1.1.4",
-    "systeminformation": "^4.14.8",
+    "systeminformation": "^5.3.1",
     "usb": "^1.6.0"
   }
 }
